@@ -176,24 +176,34 @@
 
 					// Wheels
 					this.wheels = [];
+					this.frontWheelPivots = [];
 					const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 32);
 					wheelGeometry.rotateZ(Math.PI / 2); // Align wheel axle with X-axis
 					const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
 
-					const wheelPositions = [
-						new THREE.Vector3(1, -0.1, 1.5),
-						new THREE.Vector3(-1, -0.1, 1.5),
-						new THREE.Vector3(1, -0.1, -1.5),
-						new THREE.Vector3(-1, -0.1, -1.5)
-					];
-
-					for (const pos of wheelPositions) {
+					// Rear wheels
+					const rearWheelPos = [new THREE.Vector3(1, -0.1, 1.5), new THREE.Vector3(-1, -0.1, 1.5)];
+					rearWheelPos.forEach(pos => {
 						const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
 						wheel.position.copy(pos);
 						wheel.castShadow = true;
 						this.mesh.add(wheel);
 						this.wheels.push(wheel);
-					}
+					});
+
+					// Front wheels with steering pivots
+					const frontWheelPos = [new THREE.Vector3(1, -0.1, -1.5), new THREE.Vector3(-1, -0.1, -1.5)];
+					frontWheelPos.forEach(pos => {
+						const pivot = new THREE.Group();
+						pivot.position.copy(pos);
+						this.mesh.add(pivot);
+						this.frontWheelPivots.push(pivot);
+
+						const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+						wheel.castShadow = true;
+						pivot.add(wheel);
+						this.wheels.push(wheel);
+					});
 
 					// Brake lights
 					this.brakeLights = [];
@@ -246,8 +256,9 @@
 					});
 
 					// 8. Visually steer front wheels
-					this.wheels[2].rotation.y = this.steering * 0.5;
-					this.wheels[3].rotation.y = this.steering * 0.5;
+					this.frontWheelPivots.forEach(pivot => {
+						pivot.rotation.y = this.steering * 0.5;
+					});
 				}
 
 				checkCollisions() {
