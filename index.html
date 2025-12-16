@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>3D City Racing Game</title>
+		<style>
+			body { margin: 0; overflow: hidden; }
+			canvas { display: block; }
+			#speedometer {
+				position: absolute;
+				bottom: 10px;
+				right: 10px;
+				color: white;
+				font-size: 24px;
+				font-family: monospace;
+			}
+			#instructions {
+				position: absolute;
+				top: 10px;
+				left: 10px;
+				color: white;
+				font-family: sans-serif;
+			}
+			#minimap {
+				position: absolute;
+				top: 10px;
+				right: 10px;
+				border: 1px solid white;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="minimap" width="200" height="200"></canvas>
+		<div id="instructions">
+			W/S: Accelerate/Brake<br>
+			A/D: Steer<br>
+			Space: Handbrake
+		</div>
+		<div id="speedometer">0 km/h</div>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.148.0/build/three.module.js",
+					"three/addons/": "https://unpkg.com/three@0.148.0/examples/jsm/"
+				}
+			}
+		</script>
+		<script type="module">
+			import * as THREE from 'three';
+			import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+
+			// =================================================================================================
+			// Scene Setup
+			// =================================================================================================
+
+			const scene = new THREE.Scene();
+			scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+
+			const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+			camera.position.set(0, 5, 10);
+			camera.lookAt(0, 0, 0);
+
+			const renderer = new THREE.WebGLRenderer({ antialias: true });
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			renderer.shadowMap.enabled = true;
+			document.body.appendChild(renderer.domElement);
+
+			// =================================================================================================
+			// Lighting
+			// =================================================================================================
+
+			const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+			scene.add(ambientLight);
+
+			const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+			directionalLight.position.set(50, 50, 50);
+			directionalLight.castShadow = true;
+			directionalLight.shadow.mapSize.width = 2048;
+			directionalLight.shadow.mapSize.height = 2048;
+			scene.add(directionalLight);
+
+			// =================================================================================================
+			// City Generation
+			// =================================================================================================
+
+			const buildingBoundingBoxes = [];
+			function generateCity() {
+				const citySize = 200;
+				const blockSize = 10;
+				const roadWidth = 2;
+
+				// Ground
+				const groundGeometry = new THREE.PlaneGeometry(citySize, citySize);
+				const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x404040 }); // Asphalt color
+				const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+				ground.rotation.x = -Math.PI / 2;
+				ground.receiveShadow = true;
+				scene.add(ground);
+
+				const buildingMaterial = new THREE.MeshStandardMaterial({ vertexColors: true });
+				const buildingGeometries = [];
+
+				// Create buildings and roads
+				for (let i = -citySize / 2; i < citySize / 2; i += blockSize) {
+					for (let j = -citySize / 2; j < citySize / 2; j += blockSize) {
+						if (Math.random() > 0.1) { // 90% chance of a building
+							const buildingHeight = Math.random() * 20 + 5;
+							const buildingGeometry = new THREE.BoxGeometry(blockSize - roadWidth, buildingHeight, blockSize - roadWidth);
+
+							const position = new THREE.Vector3(i + blockSize / 2, buildingHeight / 2, j + blockSize / 2);
+							const color = new THREE.Color(Math.random() * 0xffffff);
+
+							const colors = [];
+							for(let k=0; k < buildingGeometry.attributes.position.count; k++) {
+								colors.push(color.r, color.g, color.b);
+							}
+							buildingGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+							buildingGeometry.translate(position.x, position.y, position.z);
+							buildingGeometries.push(buildingGeometry);
+
+							const boundingBox = new THREE.Box3().setFromObject(new THREE.Mesh(buildingGeometry));
+							buildingBoundingBoxes.push(boundingBox);
+						}
+					}
+				}
+
+				if (buildingGeometries.length > 0) {
+					const mergedGeometries = BufferGeometryUtils.mergeBufferGeometries(buildingGeometries);
+					const buildings = new THREE.Mesh(mergedGeometries, buildingMaterial);
+					buildings.castShadow = true;
+					buildings.receiveShadow = true;
+					scene.add(buildings);
+				}
+
+				// Road markings
+				const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+				for (let i = -citySize / 2; i < citySize / 2; i += blockSize) {
+					for(let j = -citySize/2; j < citySize/2; j+= 2){
+						const points = [];
+						points.push(new THREE.Vector3(i - roadWidth/2, 0.01, j));
+						points.push(new THREE.Vector3(i - roadWidth/2, 0.01, j+1));
+						const geometry = new THREE.BufferGeometry().setFromPoints(points);
+						const line = new THREE.Line(geometry, lineMaterial);
+						scene.add(line);
+					}
+				}
+			}
+			generateCity();
+
+			// =================================================================================================
+			// Player Car
+			// =================================================================================================
+
+			class Car {
+				constructor() {
+					// Car body
+					const carBody = new THREE.BoxGeometry(2, 0.8, 4);
+					const carMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+					this.mesh = new THREE.Mesh(carBody, carMaterial);
+					this.mesh.position.y = 0.4;
+					this.mesh.castShadow = true;
+					scene.add(this.mesh);
+
+					// Brake lights
+					this.brakeLights = [];
+					const brakeLight1 = new THREE.PointLight(0xff0000, 0, 10);
+					brakeLight1.position.set(-0.8, 0.5, 2);
+					this.mesh.add(brakeLight1);
+					this.brakeLights.push(brakeLight1);
+
+					const brakeLight2 = new THREE.PointLight(0xff0000, 0, 10);
+					brakeLight2.position.set(0.8, 0.5, 2);
+					this.mesh.add(brakeLight2);
+					this.brakeLights.push(brakeLight2);
+
+					// Physics properties
+					this.velocity = new THREE.Vector3();
+					this.steering = 0;
+					this.acceleration = 0;
+				}
+
+				update(dt) {
+					// Apply drag
+					this.velocity.multiplyScalar(0.98);
+
+					// Update position based on velocity
+					this.mesh.position.add(this.velocity.clone().multiplyScalar(dt));
+
+					// Update rotation based on steering and speed
+					this.mesh.rotation.y += this.steering * this.velocity.length() * dt;
+
+					// Apply acceleration
+					const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion);
+					this.velocity.add(forward.multiplyScalar(this.acceleration * dt));
+				}
+
+				checkCollisions() {
+					const carBox = new THREE.Box3().setFromObject(this.mesh);
+					for (const buildingBox of buildingBoundingBoxes) {
+						if (carBox.intersectsBox(buildingBox)) {
+							return true; // Collision detected
+						}
+					}
+					return false; // No collision
+				}
+			}
+			const playerCar = new Car();
+
+			// =================================================================================================
+			// Controls
+			// =================================================================================================
+
+			const controls = { w: false, s: false, a: false, d: false, space: false };
+
+			window.addEventListener('keydown', (e) => {
+				if (controls[e.key.toLowerCase()] !== undefined) {
+					controls[e.key.toLowerCase()] = true;
+				}
+			});
+			window.addEventListener('keyup', (e) => {
+				if (controls[e.key.toLowerCase()] !== undefined) {
+					controls[e.key.toLowerCase()] = false;
+				}
+			});
+
+			function updateControls() {
+				// Acceleration and braking
+				playerCar.acceleration = 0;
+				if (controls.w) playerCar.acceleration = 15;
+				if (controls.s) playerCar.acceleration = -15;
+
+				// Brake lights
+				if (controls.s) {
+					playerCar.brakeLights.forEach(light => light.intensity = 1);
+				} else {
+					playerCar.brakeLights.forEach(light => light.intensity = 0);
+				}
+
+				// Steering
+				playerCar.steering = 0;
+				if (controls.a) playerCar.steering = 1.5;
+				if (controls.d) playerCar.steering = -1.5;
+
+				// Handbrake
+				if (controls.space) {
+					playerCar.velocity.multiplyScalar(0.9);
+					playerCar.steering *= 1.5; // More steering control during handbrake
+				}
+			}
+
+			// =================================================================================================
+			// Animation Loop
+			// =================================================================================================
+
+			const clock = new THREE.Clock();
+			function animate() {
+				requestAnimationFrame(animate);
+				const dt = clock.getDelta();
+
+				// Update game objects
+				updateControls();
+				const oldPosition = playerCar.mesh.position.clone();
+				playerCar.update(dt);
+
+				// Handle collisions
+				if (playerCar.checkCollisions()) {
+					playerCar.velocity.multiplyScalar(-0.5); // Bounce back
+					playerCar.mesh.position.copy(oldPosition);
+				}
+
+				// Update camera to follow the car
+				const cameraOffset = new THREE.Vector3(0, 5, 10).applyQuaternion(playerCar.mesh.quaternion);
+				const cameraPosition = playerCar.mesh.position.clone().add(cameraOffset);
+				camera.position.lerp(cameraPosition, 0.1);
+				camera.lookAt(playerCar.mesh.position);
+
+				// Update UI
+				const speed = playerCar.velocity.length() * 3.6; // Convert to km/h
+				document.getElementById('speedometer').textContent = `${Math.floor(speed)} km/h`;
+				updateMinimap();
+
+				// Render the scene
+				renderer.render(scene, camera);
+			}
+			animate();
+
+			// =================================================================================================
+			// Minimap
+			// =================================================================================================
+
+			const minimap = document.getElementById('minimap');
+			const minimapCtx = minimap.getContext('2d');
+			function updateMinimap() {
+				minimapCtx.clearRect(0, 0, minimap.width, minimap.height);
+				minimapCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+				minimapCtx.fillRect(0, 0, minimap.width, minimap.height);
+
+				const mapScale = 1;
+				const mapWidth = 200;
+				const mapHeight = 200;
+
+				// Draw buildings on the minimap
+				buildingBoundingBoxes.forEach(box => {
+					const x = (box.min.x + mapWidth / 2) * mapScale;
+					const z = (box.min.z + mapHeight / 2) * mapScale;
+					const width = (box.max.x - box.min.x) * mapScale;
+					const height = (box.max.z - box.min.z) * mapScale;
+					minimapCtx.fillStyle = 'gray';
+					minimapCtx.fillRect(x, z, width, height);
+				});
+
+				// Draw the player's car on the minimap
+				const carX = (playerCar.mesh.position.x + mapWidth / 2) * mapScale;
+				const carZ = (playerCar.mesh.position.z + mapHeight / 2) * mapScale;
+				minimapCtx.fillStyle = 'red';
+				minimapCtx.fillRect(carX - 2, carZ - 2, 4, 4);
+			}
+
+			// =================================================================================================
+			// Window Resize Handling
+			// =================================================================================================
+
+			window.addEventListener('resize', () => {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			});
+		</script>
+	</body>
+</html>
