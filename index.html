@@ -282,7 +282,6 @@
 				// Render the scene
 				renderer.render(scene, camera);
 			}
-			animate();
 
 			// =================================================================================================
 			// Minimap
@@ -315,6 +314,8 @@
 				minimapCtx.fillStyle = 'red';
 				minimapCtx.fillRect(carX - 2, carZ - 2, 4, 4);
 			}
+
+			animate();
 
 			// =================================================================================================
 			// Window Resize Handling
