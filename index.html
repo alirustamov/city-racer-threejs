@@ -226,8 +226,8 @@
 			function updateControls() {
 				// Acceleration and braking
 				playerCar.acceleration = 0;
-				if (controls.w) playerCar.acceleration = 15;
-				if (controls.s) playerCar.acceleration = -15;
+				if (controls.w) playerCar.acceleration = 30;
+				if (controls.s) playerCar.acceleration = -30;
 
 				// Brake lights
 				if (controls.s) {
@@ -238,8 +238,8 @@
 
 				// Steering
 				playerCar.steering = 0;
-				if (controls.a) playerCar.steering = 1.5;
-				if (controls.d) playerCar.steering = -1.5;
+				if (controls.a) playerCar.steering = 0.5;
+				if (controls.d) playerCar.steering = -0.5;
 
 				// Handbrake
 				if (controls.space) {
