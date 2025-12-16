@@ -52,11 +52,12 @@
 			// Game Constants
 			// =================================================================================================
 
-			const STEERING_SENSITIVITY = 0.15;
-			const ACCELERATION = 30;
-			const DECELERATION = -30;
-			const HANDBRAKE_DRAG = 0.9;
-			const DRAG = 0.98;
+			const ACCELERATION = 40;
+			const DECELERATION = -40;
+			const DRAG = 0.985;
+			const STEERING_SPEED = 2.0; // How quickly the car turns
+			const LATERAL_DRAG = 0.9; // Grip of the tires
+			const HANDBRAKE_LATERAL_DRAG = 0.3; // How much grip is lost during handbrake
 
 			// =================================================================================================
 			// Scene Setup
@@ -173,6 +174,27 @@
 					this.mesh.castShadow = true;
 					scene.add(this.mesh);
 
+					// Wheels
+					this.wheels = [];
+					const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 32);
+					wheelGeometry.rotateZ(Math.PI / 2); // Align wheel axle with X-axis
+					const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
+
+					const wheelPositions = [
+						new THREE.Vector3(1, -0.1, 1.5),
+						new THREE.Vector3(-1, -0.1, 1.5),
+						new THREE.Vector3(1, -0.1, -1.5),
+						new THREE.Vector3(-1, -0.1, -1.5)
+					];
+
+					for (const pos of wheelPositions) {
+						const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+						wheel.position.copy(pos);
+						wheel.castShadow = true;
+						this.mesh.add(wheel);
+						this.wheels.push(wheel);
+					}
+
 					// Brake lights
 					this.brakeLights = [];
 					const brakeLight1 = new THREE.PointLight(0xff0000, 0, 10);
@@ -189,21 +211,43 @@
 					this.velocity = new THREE.Vector3();
 					this.steering = 0;
 					this.acceleration = 0;
+					this.handbrake = false;
 				}
 
 				update(dt) {
-					// Apply drag
-					this.velocity.multiplyScalar(DRAG);
+					// 1. Transform world velocity to local space
+					const localVelocity = this.velocity.clone().applyQuaternion(this.mesh.quaternion.clone().invert());
 
-					// Update position based on velocity
+					// 2. Apply lateral friction (tire grip) and drag
+					const currentLateralDrag = this.handbrake ? HANDBRAKE_LATERAL_DRAG : LATERAL_DRAG;
+					localVelocity.x *= currentLateralDrag;
+					localVelocity.z *= DRAG; // Forward drag
+
+					// 3. Apply acceleration (in local space)
+					localVelocity.z -= this.acceleration * dt;
+
+					// 4. Transform back to world space
+					this.velocity.copy(localVelocity).applyQuaternion(this.mesh.quaternion);
+
+					// 5. Update rotation based on steering
+					// The turn factor makes steering less sensitive at low speeds, preventing twitching
+					const turnFactor = Math.min(1, this.velocity.length() / 5); // Full steering at 5 m/s
+					this.mesh.rotation.y += this.steering * STEERING_SPEED * turnFactor * dt;
+
+					// 6. Update position
 					this.mesh.position.add(this.velocity.clone().multiplyScalar(dt));
 
-					// Update rotation based on steering and speed
-					this.mesh.rotation.y += this.steering * this.velocity.length() * dt;
+					// 7. Rotate wheels based on forward speed
+					const forwardSpeed = -localVelocity.z;
+					const wheelCircumference = 2 * Math.PI * 0.4; // wheel radius is 0.4
+					const wheelRotation = (forwardSpeed * dt) / wheelCircumference;
+					this.wheels.forEach(wheel => {
+						wheel.rotation.x += wheelRotation;
+					});
 
-					// Apply acceleration
-					const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion);
-					this.velocity.add(forward.multiplyScalar(this.acceleration * dt));
+					// 8. Visually steer front wheels
+					this.wheels[2].rotation.y = this.steering * 0.5;
+					this.wheels[3].rotation.y = this.steering * 0.5;
 				}
 
 				checkCollisions() {
@@ -250,14 +294,11 @@
 
 				// Steering
 				playerCar.steering = 0;
-				if (controls.a) playerCar.steering = STEERING_SENSITIVITY;
-				if (controls.d) playerCar.steering = -STEERING_SENSITIVITY;
+				if (controls.a) playerCar.steering = 1;
+				if (controls.d) playerCar.steering = -1;
 
 				// Handbrake
-				if (controls.space) {
-					playerCar.velocity.multiplyScalar(HANDBRAKE_DRAG);
-					playerCar.steering *= 1.5; // More steering control during handbrake
-				}
+				playerCar.handbrake = controls.space;
 			}
 
 			// =================================================================================================
