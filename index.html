@@ -49,6 +49,16 @@
 			import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 
 			// =================================================================================================
+			// Game Constants
+			// =================================================================================================
+
+			const STEERING_SENSITIVITY = 0.15;
+			const ACCELERATION = 30;
+			const DECELERATION = -30;
+			const HANDBRAKE_DRAG = 0.9;
+			const DRAG = 0.98;
+
+			// =================================================================================================
 			// Scene Setup
 			// =================================================================================================
 
@@ -134,16 +144,18 @@
 
 				// Road markings
 				const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+				const linePoints = [];
 				for (let i = -citySize / 2; i < citySize / 2; i += blockSize) {
-					for(let j = -citySize/2; j < citySize/2; j+= 2){
-						const points = [];
-						points.push(new THREE.Vector3(i - roadWidth/2, 0.01, j));
-						points.push(new THREE.Vector3(i - roadWidth/2, 0.01, j+1));
-						const geometry = new THREE.BufferGeometry().setFromPoints(points);
-						const line = new THREE.Line(geometry, lineMaterial);
-						scene.add(line);
+					for(let j = -citySize/2; j < citySize/2; j+= 4){ // Dashed lines
+						linePoints.push(new THREE.Vector3(i - roadWidth/2, 0.01, j));
+						linePoints.push(new THREE.Vector3(i - roadWidth/2, 0.01, j + 2));
+						linePoints.push(new THREE.Vector3(j, 0.01, i - roadWidth/2));
+						linePoints.push(new THREE.Vector3(j + 2, 0.01, i - roadWidth/2));
 					}
 				}
+				const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+				const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+				scene.add(lines);
 			}
 			generateCity();
 
@@ -181,7 +193,7 @@
 
 				update(dt) {
 					// Apply drag
-					this.velocity.multiplyScalar(0.98);
+					this.velocity.multiplyScalar(DRAG);
 
 					// Update position based on velocity
 					this.mesh.position.add(this.velocity.clone().multiplyScalar(dt));
@@ -198,10 +210,10 @@
 					const carBox = new THREE.Box3().setFromObject(this.mesh);
 					for (const buildingBox of buildingBoundingBoxes) {
 						if (carBox.intersectsBox(buildingBox)) {
-							return true; // Collision detected
+							return buildingBox; // Return the colliding box
 						}
 					}
-					return false; // No collision
+					return null; // No collision
 				}
 			}
 			const playerCar = new Car();
@@ -226,8 +238,8 @@
 			function updateControls() {
 				// Acceleration and braking
 				playerCar.acceleration = 0;
-				if (controls.w) playerCar.acceleration = 30;
-				if (controls.s) playerCar.acceleration = -30;
+				if (controls.w) playerCar.acceleration = ACCELERATION;
+				if (controls.s) playerCar.acceleration = DECELERATION;
 
 				// Brake lights
 				if (controls.s) {
@@ -238,12 +250,12 @@
 
 				// Steering
 				playerCar.steering = 0;
-				if (controls.a) playerCar.steering = 0.5;
-				if (controls.d) playerCar.steering = -0.5;
+				if (controls.a) playerCar.steering = STEERING_SENSITIVITY;
+				if (controls.d) playerCar.steering = -STEERING_SENSITIVITY;
 
 				// Handbrake
 				if (controls.space) {
-					playerCar.velocity.multiplyScalar(0.9);
+					playerCar.velocity.multiplyScalar(HANDBRAKE_DRAG);
 					playerCar.steering *= 1.5; // More steering control during handbrake
 				}
 			}
@@ -263,9 +275,47 @@
 				playerCar.update(dt);
 
 				// Handle collisions
-				if (playerCar.checkCollisions()) {
-					playerCar.velocity.multiplyScalar(-0.5); // Bounce back
-					playerCar.mesh.position.copy(oldPosition);
+				const collisionBox = playerCar.checkCollisions();
+				if (collisionBox) {
+					// 1. Calculate the overlap (penetration) vector.
+					const carBox = new THREE.Box3().setFromObject(playerCar.mesh);
+					const overlap = new THREE.Vector3();
+
+					// Find the smallest overlap on each axis.
+					const deltaX1 = collisionBox.max.x - carBox.min.x;
+					const deltaX2 = carBox.max.x - collisionBox.min.x;
+					const deltaZ1 = collisionBox.max.z - carBox.min.z;
+					const deltaZ2 = carBox.max.z - collisionBox.min.z;
+
+					let minOverlap = Infinity;
+					let normal = new THREE.Vector3();
+
+					if (deltaX1 < minOverlap) {
+						minOverlap = deltaX1;
+						normal.set(-1, 0, 0);
+					}
+					if (deltaX2 < minOverlap) {
+						minOverlap = deltaX2;
+						normal.set(1, 0, 0);
+					}
+					if (deltaZ1 < minOverlap) {
+						minOverlap = deltaZ1;
+						normal.set(0, 0, -1);
+					}
+					if (deltaZ2 < minOverlap) {
+						minOverlap = deltaZ2;
+						normal.set(0, 0, 1);
+					}
+
+					// 2. Project the velocity vector onto the collision normal.
+					const projection = playerCar.velocity.clone().projectOnVector(normal);
+
+					// 3. Subtract the projection from the velocity to get the sliding vector.
+					playerCar.velocity.sub(projection);
+
+					// 4. Push the car out of the wall by the penetration depth.
+					const penetration_vector = normal.multiplyScalar(minOverlap);
+					playerCar.mesh.position.sub(penetration_vector)
 				}
 
 				// Update camera to follow the car
