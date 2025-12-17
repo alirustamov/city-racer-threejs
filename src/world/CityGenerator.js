@@ -1,33 +1,74 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+import {
+    hashCode
+} from '../utils/hashCode.js';
+
+const CHUNK_SIZE = 200;
 
 export class CityGenerator {
-    constructor() {
+    constructor(scene) {
+        this.scene = scene;
         this.buildingBoundingBoxes = [];
-    }
-
-    generateCity(scene) {
-        const citySize = 200;
-        const blockSize = 20;
-        const roadWidth = 10;
-
-        // Ground
-        const groundGeometry = new THREE.PlaneGeometry(citySize, citySize);
-        const groundMaterial = this.createAsphaltMaterial(citySize);
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        // More realistic material with a window texture
-        const buildingMaterial = new THREE.MeshStandardMaterial({
+        this.loadedChunks = new Map();
+        this.buildingMaterial = new THREE.MeshStandardMaterial({
             vertexColors: true,
             map: this.createWindowTexture(),
             roughness: 0.7,
             metalness: 0.3,
         });
+    }
+
+    getChunkKey(x, z) {
+        return `${x},${z}`;
+    }
+
+    update(playerPosition) {
+        const playerChunkX = Math.floor(playerPosition.x / CHUNK_SIZE);
+        const playerChunkZ = Math.floor(playerPosition.z / CHUNK_SIZE);
+
+        // Load chunks around the player
+        for (let x = playerChunkX - 1; x <= playerChunkX + 1; x++) {
+            for (let z = playerChunkZ - 1; z <= playerChunkZ + 1; z++) {
+                const chunkKey = this.getChunkKey(x, z);
+                if (!this.loadedChunks.has(chunkKey)) {
+                    this.generateChunk(x, z);
+                }
+            }
+        }
+
+        // Unload distant chunks
+        for (const [chunkKey, chunk] of this.loadedChunks.entries()) {
+            const [x, z] = chunkKey.split(',').map(Number);
+            if (Math.abs(x - playerChunkX) > 1 || Math.abs(z - playerChunkZ) > 1) {
+                this.scene.remove(chunk.mesh);
+                this.buildingBoundingBoxes = this.buildingBoundingBoxes.filter(
+                    box => !chunk.boundingBoxes.includes(box)
+                );
+                this.loadedChunks.delete(chunkKey);
+            }
+        }
+    }
+
+    generateChunk(chunkX, chunkZ) {
+        const chunkKey = this.getChunkKey(chunkX, chunkZ);
+        const seed = hashCode(chunkKey);
+        const random = new Math.seedrandom(seed);
+
+        const chunkPosition = new THREE.Vector3(chunkX * CHUNK_SIZE, 0, chunkZ * CHUNK_SIZE);
+
+        // Ground
+        const groundGeometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE);
+        const groundMaterial = this.createAsphaltMaterial(CHUNK_SIZE);
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.copy(chunkPosition);
+        ground.receiveShadow = true;
+        this.scene.add(ground);
+
 
         const buildingGeometries = [];
+        const chunkBoundingBoxes = [];
         const colorPalette = [
             new THREE.Color(0x8e9aaf), // Muted Blue
             new THREE.Color(0x6b7b8c), // Slate Gray
@@ -37,19 +78,21 @@ export class CityGenerator {
         ];
 
         // Create buildings
-        for (let i = -citySize / 2; i < citySize / 2; i += blockSize) {
-            for (let j = -citySize / 2; j < citySize / 2; j += blockSize) {
-                if (Math.random() > 0.2) { // 80% chance of a building
+        const blockSize = 20;
+        const roadWidth = 10;
+        for (let i = -CHUNK_SIZE / 2; i < CHUNK_SIZE / 2; i += blockSize) {
+            for (let j = -CHUNK_SIZE / 2; j < CHUNK_SIZE / 2; j += blockSize) {
+                if (random() > 0.2) { // 80% chance of a building
                     // Randomize building dimensions
-                    const width = Math.random() * (blockSize - roadWidth - 4) + 4;
-                    const depth = Math.random() * (blockSize - roadWidth - 4) + 4;
-                    const height = Math.random() * 40 + 10;
-                    const yOffset = Math.random() * 0.2; // Slight vertical offset
+                    const width = random() * (blockSize - roadWidth - 4) + 4;
+                    const depth = random() * (blockSize - roadWidth - 4) + 4;
+                    const height = random() * 40 + 10;
+                    const yOffset = random() * 0.2; // Slight vertical offset
 
                     const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
 
                     // Pick a random color from the palette
-                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    const color = colorPalette[Math.floor(random() * colorPalette.length)];
                     const colors = [];
                     for (let k = 0; k < buildingGeometry.attributes.position.count; k++) {
                         colors.push(color.r, color.g, color.b);
@@ -58,12 +101,12 @@ export class CityGenerator {
 
                     // Add slight rotation and offset to break the grid
                     const position = new THREE.Vector3(
-                        i + blockSize / 2 + (Math.random() - 0.5) * (blockSize - width),
+                        chunkPosition.x + i + blockSize / 2 + (random() - 0.5) * (blockSize - width),
                         height / 2 + yOffset,
-                        j + blockSize / 2 + (Math.random() - 0.5) * (blockSize - depth)
+                        chunkPosition.z + j + blockSize / 2 + (random() - 0.5) * (blockSize - depth)
                     );
 
-                    const rotation = new THREE.Euler(0, (Math.random() - 0.5) * 0.1, 0);
+                    const rotation = new THREE.Euler(0, (random() - 0.5) * 0.1, 0);
                     const quaternion = new THREE.Quaternion().setFromEuler(rotation);
                     buildingGeometry.applyQuaternion(quaternion);
 
@@ -74,18 +117,25 @@ export class CityGenerator {
                     // Create and store bounding box
                     const tempMesh = new THREE.Mesh(buildingGeometry);
                     const boundingBox = new THREE.Box3().setFromObject(tempMesh);
-                    this.buildingBoundingBoxes.push(boundingBox);
+                    chunkBoundingBoxes.push(boundingBox);
                 }
             }
         }
 
+        let mergedMesh = null;
         if (buildingGeometries.length > 0) {
             const mergedGeometries = BufferGeometryUtils.mergeBufferGeometries(buildingGeometries);
-            const buildings = new THREE.Mesh(mergedGeometries, buildingMaterial);
-            buildings.castShadow = true;
-            buildings.receiveShadow = true;
-            scene.add(buildings);
+            mergedMesh = new THREE.Mesh(mergedGeometries, this.buildingMaterial);
+            mergedMesh.castShadow = true;
+            mergedMesh.receiveShadow = true;
+            this.scene.add(mergedMesh);
         }
+
+        this.loadedChunks.set(chunkKey, {
+            mesh: mergedMesh,
+            boundingBoxes: chunkBoundingBoxes
+        });
+        this.buildingBoundingBoxes.push(...chunkBoundingBoxes);
     }
 
     createWindowTexture() {

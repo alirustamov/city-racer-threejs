@@ -1,13 +1,22 @@
 import * as THREE from 'three';
 import {
-	HANDBRAKE_LATERAL_DRAG,
+	MAX_SPEED,
+	ACCELERATION,
+	DRAG,
 	LATERAL_DRAG,
+	HANDBRAKE_LATERAL_DRAG,
 	STEERING_SPEED,
-	DRAG
+	STEERING_SENSITIVITY_MIN,
+	STEERING_SENSITIVITY_MAX,
+	DRIFT_THRESHOLD,
+	DRIFT_FACTOR,
+	COLLISION_IMPULSE_FACTOR,
+	SURFACE_FRICTION
 } from '../utils/constants.js';
 
 export class Car {
-	constructor(scene) {
+	constructor(scene, roadSystem) {
+		this.roadSystem = roadSystem;
 		// Car body
 		const carBody = new THREE.BoxGeometry(2, 0.8, 4);
 		const carMaterial = new THREE.MeshStandardMaterial({
@@ -71,24 +80,43 @@ export class Car {
 	}
 
 	update(dt) {
+		const speed = this.velocity.length();
+
 		// 1. Transform world velocity to local space
 		const localVelocity = this.velocity.clone().applyQuaternion(this.mesh.quaternion.clone().invert());
 
-		// 2. Apply lateral friction (tire grip) and drag
-		const currentLateralDrag = this.handbrake ? HANDBRAKE_LATERAL_DRAG : LATERAL_DRAG;
-		localVelocity.x *= currentLateralDrag;
-		localVelocity.z *= DRAG; // Forward drag
+		// 2. Apply lateral friction (tire grip) and drag (framerate-independent)
+		let currentLateralDrag = this.handbrake ? HANDBRAKE_LATERAL_DRAG : LATERAL_DRAG;
 
-		// 3. Apply acceleration (in local space)
-		localVelocity.z -= this.acceleration * dt;
+		// Add drift-like lateral slip
+		if (speed / MAX_SPEED > DRIFT_THRESHOLD && Math.abs(this.steering) > 0.1) {
+			currentLateralDrag -= (Math.abs(this.steering) * DRIFT_FACTOR);
+		}
+
+		localVelocity.x *= Math.pow(currentLateralDrag, dt * 60);
+		localVelocity.z *= Math.pow(DRAG, dt * 60); // Forward drag
+
+		// 3. Apply acceleration (in local space) with a non-linear curve
+		const speedRatio = speed / MAX_SPEED;
+		let accelerationFactor = 1 - Math.pow(speedRatio, 2); // Stronger acceleration at low speeds
+
+		// Apply surface friction
+		const roadInfo = this.roadSystem.getRoadInfo(this.mesh.position);
+		if (roadInfo.onRoad) {
+			accelerationFactor *= SURFACE_FRICTION.road;
+		} else {
+			accelerationFactor *= SURFACE_FRICTION.offroad;
+		}
+
+		localVelocity.z -= this.acceleration * ACCELERATION * accelerationFactor * dt;
 
 		// 4. Transform back to world space
 		this.velocity.copy(localVelocity).applyQuaternion(this.mesh.quaternion);
 
-		// 5. Update rotation based on steering
-		// The turn factor makes steering less sensitive at low speeds, preventing twitching
-		const turnFactor = Math.min(1, this.velocity.length() / 5); // Full steering at 5 m/s
-		this.mesh.rotation.y += this.steering * STEERING_SPEED * turnFactor * dt;
+		// 5. Update rotation based on steering (speed-sensitive)
+		const steeringSensitivity = STEERING_SENSITIVITY_MAX - (speed / MAX_SPEED) * (STEERING_SENSITIVITY_MAX - STEERING_SENSITIVITY_MIN);
+		this.mesh.rotation.y += this.steering * STEERING_SPEED * steeringSensitivity * dt;
+
 
 		// 6. Update position
 		this.mesh.position.add(this.velocity.clone().multiplyScalar(dt));
