@@ -21,17 +21,18 @@ export class CityGenerator {
 
         for (let i = 0; i < textureSize; i++) {
             const stride = i * 4;
-            const isWindow = Math.random() > 0.2;
+            const isWindow = Math.random() > 0.15; // Fewer windows
             if (isWindow) {
-                const intensity = Math.random() * 0.5 + 0.5;
-                data[stride] = 255 * intensity;
-                data[stride + 1] = 220 * intensity;
-                data[stride + 2] = 180 * intensity;
+                // Dark blue/grey for windows
+                data[stride] = 20;
+                data[stride + 1] = 25;
+                data[stride + 2] = 30;
                 data[stride + 3] = 255;
             } else {
-                data[stride] = 0;
-                data[stride + 1] = 0;
-                data[stride + 2] = 0;
+                // White for wall, will be tinted by vertex color
+                data[stride] = 255;
+                data[stride + 1] = 255;
+                data[stride + 2] = 255;
                 data[stride + 3] = 255;
             }
         }
@@ -39,16 +40,15 @@ export class CityGenerator {
         const windowTexture = new THREE.DataTexture(data, textureWidth, textureHeight, THREE.RGBAFormat);
         windowTexture.wrapS = THREE.RepeatWrapping;
         windowTexture.wrapT = THREE.RepeatWrapping;
-        windowTexture.repeat.set(4, 8); // How many windows repeating
+        windowTexture.repeat.set(4, 8);
         windowTexture.needsUpdate = true;
 
+        // TODO: Explore more advanced procedural texture techniques for varied window patterns
         return new THREE.MeshStandardMaterial({
             vertexColors: true,
-            emissive: 0xffffff,
-            emissiveMap: windowTexture,
-            emissiveIntensity: 1.5,
-            roughness: 0.7,
-            metalness: 0.2,
+            map: windowTexture, // Use texture for color, which will be modulated by vertex colors
+            roughness: 0.8,
+            metalness: 0.1,
         });
     }
 

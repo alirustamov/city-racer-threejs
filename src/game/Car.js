@@ -11,11 +11,15 @@ export class Car {
 		// Car body
 		const carBody = new THREE.BoxGeometry(2, 0.8, 4);
 		const carMaterial = new THREE.MeshStandardMaterial({
-			color: 0xff0000
+			color: 0xff0000,
+			roughness: 0.1,
+			metalness: 0.9,
 		});
 		this.mesh = new THREE.Mesh(carBody, carMaterial);
 		this.mesh.position.y = 0.4;
+		// Cars should cast and receive shadows.
 		this.mesh.castShadow = true;
+		this.mesh.receiveShadow = true;
 		scene.add(this.mesh);
 
 		// Wheels
@@ -24,7 +28,9 @@ export class Car {
 		const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 32);
 		wheelGeometry.rotateZ(Math.PI / 2); // Align wheel axle with X-axis
 		const wheelMaterial = new THREE.MeshStandardMaterial({
-			color: 0x111111
+			color: 0x111111,
+			roughness: 0.8,
+			metalness: 0.1,
 		});
 
 		// Rear wheels
@@ -33,6 +39,7 @@ export class Car {
 			const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
 			wheel.position.copy(pos);
 			wheel.castShadow = true;
+			wheel.receiveShadow = true;
 			this.mesh.add(wheel);
 			this.wheels.push(wheel);
 		});
@@ -47,6 +54,7 @@ export class Car {
 
 			const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
 			wheel.castShadow = true;
+			wheel.receiveShadow = true;
 			pivot.add(wheel);
 			this.wheels.push(wheel);
 		});

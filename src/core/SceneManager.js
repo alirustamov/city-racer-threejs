@@ -3,18 +3,18 @@ import * as THREE from 'three';
 export class SceneManager {
     constructor() {
         this.scene = new THREE.Scene();
-        // Set a dark background for a night scene
-        this.scene.background = new THREE.Color(0x0c0c1a);
+        // A bright sky blue for a daytime scene
+        this.scene.background = new THREE.Color(0x87ceeb);
         this.initLighting();
     }
 
     initLighting() {
-        // HemisphereLight for soft, ambient night light
-        const hemisphereLight = new THREE.HemisphereLight(0x404060, 0x101020, 0.4);
+        // HemisphereLight for a soft, ambient, sunlit feel
+        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
         this.scene.add(hemisphereLight);
 
-        // DirectionalLight to simulate moonlight
-        const directionalLight = new THREE.DirectionalLight(0x8090ff, 0.8);
+        // DirectionalLight to simulate the sun
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
         directionalLight.position.set(50, 80, 25);
         directionalLight.castShadow = true;
 
