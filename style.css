@@ -1,0 +1,168 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+canvas {
+    display: block;
+}
+
+#hud-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+    pointer-events: none; /* Allow mouse events to pass through */
+}
+
+/* Speedometer & Gear */
+.speedometer-container {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    padding: 10px 20px;
+    display: flex;
+    align-items: baseline;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#speed-value {
+    font-size: 64px;
+    font-weight: bold;
+}
+
+.speed-unit {
+    font-size: 24px;
+    margin-left: 10px;
+}
+
+.gear-container {
+    margin-left: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.gear-label {
+    font-size: 18px;
+    font-weight: lighter;
+}
+
+#gear-value {
+    font-size: 48px;
+    font-weight: bold;
+}
+
+/* Minimap */
+#minimap {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%; /* Circular minimap */
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* Top-left Info */
+.info-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+    background-color: rgba(0, 0, 0, 0.4);
+    padding: 10px;
+    border-radius: 5px;
+}
+
+#instructions {
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#fps-counter {
+    margin-top: 10px;
+    font-family: monospace;
+    font-size: 16px;
+    display: none; /* Hidden by default */
+}
+
+/* Settings Panel */
+#settings-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(20, 20, 30, 0.9);
+    color: white;
+    padding: 30px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    width: 400px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#settings-panel.hidden {
+    opacity: 0;
+    transform: translate(-50%, -45%);
+    pointer-events: none;
+}
+
+#settings-panel h2 {
+    margin-top: 0;
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 15px;
+}
+
+.settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.settings-row label {
+    font-size: 16px;
+}
+
+#settings-panel select, #settings-panel input[type="range"], #settings-panel button {
+    font-size: 14px;
+    padding: 8px 12px;
+    background-color: rgba(0, 0, 0, 0.3);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#settings-panel button {
+    width: 100%;
+    margin-top: 10px;
+    background-color: #4a4e69;
+    transition: background-color 0.2s ease;
+}
+
+#settings-panel button:hover {
+    background-color: #6a6e9a;
+}
+
+#settings-panel #close-settings {
+    background-color: #9a8c98;
+}
+
+#settings-panel #close-settings:hover {
+    background-color: #b9a8c8;
+}
+
+#settings-panel input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+}

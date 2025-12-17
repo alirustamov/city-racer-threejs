@@ -4,12 +4,14 @@ import { CameraController } from './core/CameraController.js';
 import { Renderer } from './core/Renderer.js';
 import { Car } from './game/Car.js';
 import { InputController } from './game/InputController.js';
-import { Speedometer } from './game/Speedometer.js';
 import { CityGenerator } from './world/CityGenerator.js';
 import { RoadSystem } from './world/RoadSystem.js';
-import { Minimap } from './game/Minimap.js';
+import { HUD } from './game/HUD.js';
 import { AICar } from './game/AICar.js';
+import { SettingsManager } from './game/SettingsManager.js';
+import { DebugManager } from './core/DebugManager.js';
 
+const COLLISION_IMPULSE_FACTOR = 1.5; // New constant for collision physics
 const sceneManager = new SceneManager();
 const cameraController = new CameraController();
 const renderer = new Renderer(cameraController.camera);
@@ -28,9 +30,10 @@ for (let i = 0; i < 10; i++) {
 const allCars = [playerCar, ...aiCars];
 
 
-const inputController = new InputController();
-const speedometer = new Speedometer();
-const minimap = new Minimap();
+const hud = new HUD();
+const settingsManager = new SettingsManager(renderer, cameraController, hud);
+const debugManager = new DebugManager(sceneManager.scene, cityGenerator, aiCars);
+const inputController = new InputController(settingsManager, debugManager);
 
 function animate() {
     requestAnimationFrame(animate);
@@ -48,6 +51,7 @@ function animate() {
     // Collision detection
     for (let i = 0; i < allCars.length; i++) {
         const car = allCars[i];
+        if (!car.mesh.visible) continue;
         const collisionBox = car.checkCollisions(cityGenerator.buildingBoundingBoxes);
         if (collisionBox) {
             // 1. Calculate the overlap (penetration) vector.
@@ -106,8 +110,8 @@ function animate() {
     }
 
     cameraController.update(playerCar);
-    speedometer.update(playerCar.velocity);
-    minimap.update(playerCar, cityGenerator.buildingBoundingBoxes);
+    hud.update(playerCar, cityGenerator.loadedChunks, roadSystem);
+    debugManager.update();
 
     renderer.render(sceneManager.scene, cameraController.camera);
 }

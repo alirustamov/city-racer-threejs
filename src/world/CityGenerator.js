@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import {
     hashCode
 } from '../utils/hashCode.js';
@@ -41,7 +40,16 @@ export class CityGenerator {
         for (const [chunkKey, chunk] of this.loadedChunks.entries()) {
             const [x, z] = chunkKey.split(',').map(Number);
             if (Math.abs(x - playerChunkX) > 1 || Math.abs(z - playerChunkZ) > 1) {
-                this.scene.remove(chunk.mesh);
+                // PERFORMANCE: Dispose of the InstancedMesh to free up GPU memory.
+                if (chunk.mesh) {
+                    this.scene.remove(chunk.mesh);
+                    chunk.mesh.geometry.dispose();
+                }
+                if (chunk.ground) {
+                    this.scene.remove(chunk.ground);
+                    chunk.ground.geometry.dispose();
+                    // Assuming the material is shared, we don't dispose it here.
+                }
                 this.buildingBoundingBoxes = this.buildingBoundingBoxes.filter(
                     box => !chunk.boundingBoxes.includes(box)
                 );
@@ -67,7 +75,7 @@ export class CityGenerator {
         this.scene.add(ground);
 
 
-        const buildingGeometries = [];
+        const buildingInstances = [];
         const chunkBoundingBoxes = [];
         const colorPalette = [
             new THREE.Color(0x8e9aaf), // Muted Blue
@@ -80,59 +88,71 @@ export class CityGenerator {
         // Create buildings
         const blockSize = 20;
         const roadWidth = 10;
+        const dummy = new THREE.Object3D(); // PERFORMANCE: Use a single dummy object to update instance matrices.
         for (let i = -CHUNK_SIZE / 2; i < CHUNK_SIZE / 2; i += blockSize) {
             for (let j = -CHUNK_SIZE / 2; j < CHUNK_SIZE / 2; j += blockSize) {
                 if (random() > 0.2) { // 80% chance of a building
-                    // Randomize building dimensions
                     const width = random() * (blockSize - roadWidth - 4) + 4;
                     const depth = random() * (blockSize - roadWidth - 4) + 4;
                     const height = random() * 40 + 10;
-                    const yOffset = random() * 0.2; // Slight vertical offset
+                    const yOffset = random() * 0.2;
 
-                    const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
-
-                    // Pick a random color from the palette
-                    const color = colorPalette[Math.floor(random() * colorPalette.length)];
-                    const colors = [];
-                    for (let k = 0; k < buildingGeometry.attributes.position.count; k++) {
-                        colors.push(color.r, color.g, color.b);
-                    }
-                    buildingGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-                    // Add slight rotation and offset to break the grid
                     const position = new THREE.Vector3(
                         chunkPosition.x + i + blockSize / 2 + (random() - 0.5) * (blockSize - width),
                         height / 2 + yOffset,
                         chunkPosition.z + j + blockSize / 2 + (random() - 0.5) * (blockSize - depth)
                     );
 
-                    const rotation = new THREE.Euler(0, (random() - 0.5) * 0.1, 0);
-                    const quaternion = new THREE.Quaternion().setFromEuler(rotation);
-                    buildingGeometry.applyQuaternion(quaternion);
+                    dummy.position.copy(position);
+                    dummy.rotation.y = (random() - 0.5) * 0.1;
+                    dummy.scale.set(width, height, depth);
+                    dummy.updateMatrix();
 
-                    buildingGeometry.translate(position.x, position.y, position.z);
+                    const color = colorPalette[Math.floor(random() * colorPalette.length)];
 
-                    buildingGeometries.push(buildingGeometry);
-
-                    // Create and store bounding box
-                    const tempMesh = new THREE.Mesh(buildingGeometry);
-                    const boundingBox = new THREE.Box3().setFromObject(tempMesh);
-                    chunkBoundingBoxes.push(boundingBox);
+                    buildingInstances.push({
+                        matrix: dummy.matrix.clone(),
+                        color: color,
+                        // Store dimensions for bounding box calculation
+                        width,
+                        height,
+                        depth,
+                        position
+                    });
                 }
             }
         }
 
-        let mergedMesh = null;
-        if (buildingGeometries.length > 0) {
-            const mergedGeometries = BufferGeometryUtils.mergeBufferGeometries(buildingGeometries);
-            mergedMesh = new THREE.Mesh(mergedGeometries, this.buildingMaterial);
-            mergedMesh.castShadow = true;
-            mergedMesh.receiveShadow = true;
-            this.scene.add(mergedMesh);
+        let instancedMesh = null;
+        if (buildingInstances.length > 0) {
+            // PERFORMANCE: Use InstancedMesh instead of merging geometries.
+            // This is much faster for a large number of similar objects.
+            const baseGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const instancedMaterial = this.buildingMaterial.clone();
+            instancedMaterial.vertexColors = false; // We'll use per-instance colors.
+
+            instancedMesh = new THREE.InstancedMesh(baseGeometry, instancedMaterial, buildingInstances.length);
+            instancedMesh.castShadow = true;
+            instancedMesh.receiveShadow = true;
+
+            for (let i = 0; i < buildingInstances.length; i++) {
+                const instance = buildingInstances[i];
+                instancedMesh.setMatrixAt(i, instance.matrix);
+                instancedMesh.setColorAt(i, instance.color);
+
+                // Create and store bounding box
+                const boundingBox = new THREE.Box3(
+                    new THREE.Vector3(-instance.width / 2, -instance.height / 2, -instance.depth / 2),
+                    new THREE.Vector3(instance.width / 2, instance.height / 2, instance.depth / 2)
+                ).applyMatrix4(instance.matrix);
+                chunkBoundingBoxes.push(boundingBox);
+            }
+            this.scene.add(instancedMesh);
         }
 
         this.loadedChunks.set(chunkKey, {
-            mesh: mergedMesh,
+            mesh: instancedMesh,
+            ground: ground, // Keep a reference to the ground for unloading
             boundingBoxes: chunkBoundingBoxes
         });
         this.buildingBoundingBoxes.push(...chunkBoundingBoxes);
