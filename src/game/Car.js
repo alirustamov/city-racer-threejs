@@ -77,10 +77,12 @@ export class Car {
 		this.steering = 0;
 		this.acceleration = 0;
 		this.handbrake = false;
+		this.gear = 'N';
 	}
 
 	update(dt) {
 		const speed = this.velocity.length();
+		this.updateGear(speed);
 
 		// 1. Transform world velocity to local space
 		const localVelocity = this.velocity.clone().applyQuaternion(this.mesh.quaternion.clone().invert());
@@ -134,6 +136,25 @@ export class Car {
 			pivot.rotation.y = this.steering * 0.5;
 		});
 	}
+
+	updateGear(speed) {
+        const speedKmh = speed * 3.6;
+        if (this.acceleration < -0.1 && speedKmh > 5) {
+            this.gear = 'R';
+        } else if (speedKmh < 0.1) {
+            this.gear = 'N';
+        } else if (speedKmh < 40) {
+            this.gear = '1';
+        } else if (speedKmh < 80) {
+            this.gear = '2';
+        } else if (speedKmh < 120) {
+            this.gear = '3';
+        } else if (speedKmh < 160) {
+            this.gear = '4';
+        } else {
+            this.gear = '5';
+        }
+    }
 
 	checkCollisions(buildingBoundingBoxes) {
 		const carBox = new THREE.Box3().setFromObject(this.mesh);

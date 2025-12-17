@@ -2,40 +2,60 @@
 <html>
 	<head>
 		<title>3D City Racing Game</title>
-		<style>
-			body { margin: 0; overflow: hidden; }
-			canvas { display: block; }
-			#speedometer {
-				position: absolute;
-				bottom: 10px;
-				right: 10px;
-				color: white;
-				font-size: 24px;
-				font-family: monospace;
-			}
-			#instructions {
-				position: absolute;
-				top: 10px;
-				left: 10px;
-				color: white;
-				font-family: sans-serif;
-			}
-			#minimap {
-				position: absolute;
-				top: 10px;
-				right: 10px;
-				border: 1px solid white;
-			}
-		</style>
+		<link rel="stylesheet" href="style.css">
 	</head>
 	<body>
-		<canvas id="minimap" width="200" height="200"></canvas>
-		<div id="instructions">
-			W/S: Accelerate/Brake<br>
-			A/D: Steer<br>
-			Space: Handbrake
+		<!-- Top-left Info Panel -->
+		<div class="info-container">
+			<div id="instructions">
+				W/S: Accelerate/Brake<br>
+				A/D: Steer<br>
+				Space: Handbrake<br>
+				P: Settings<br>
+				`: Debug Mode
+			</div>
+			<div id="fps-counter">FPS: 60</div>
 		</div>
-		<div id="speedometer">0 km/h</div>
+
+		<!-- Main HUD Container -->
+		<div id="hud-container">
+			<!-- Speedometer and Gear Indicator -->
+			<div class="speedometer-container">
+				<span id="speed-value">0</span>
+				<span class="speed-unit">km/h</span>
+				<div class="gear-container">
+					<span class="gear-label">GEAR</span>
+					<span id="gear-value">N</span>
+				</div>
+			</div>
+
+			<!-- Minimap -->
+			<canvas id="minimap" width="200" height="200"></canvas>
+		</div>
+
+		<!-- Settings Panel -->
+		<div id="settings-panel" class="hidden">
+			<h2>Settings</h2>
+			<div class="settings-row">
+				<label for="graphics-quality">Graphics Quality</label>
+				<select id="graphics-quality">
+					<option value="low">Low</option>
+					<option value="medium">Medium</option>
+					<option value="high">High</option>
+				</select>
+			</div>
+			<div class="settings-row">
+				<label for="camera-sensitivity">Camera Sensitivity</label>
+				<input type="range" id="camera-sensitivity" min="0.1" max="2" step="0.1">
+			</div>
+			<div class="settings-row">
+				<label for="toggle-fps">Show FPS</label>
+				<input type="checkbox" id="toggle-fps">
+			</div>
+			<button id="reset-game">Reset Game</button>
+			<button id="close-settings">Close</button>
+		</div>
+
 		<script type="importmap">
 			{
 				"imports": {

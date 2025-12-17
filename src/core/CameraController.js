@@ -13,6 +13,12 @@ export class CameraController {
         this.camera.position.set(0, 5, 10);
         this.camera.lookAt(0, 0, 0);
         this.lookAtTarget = new THREE.Vector3();
+        this.sensitivity = 1.0;
+        this.mouseSensitivity = 1.0;
+    }
+
+    setSensitivity(value) {
+        this.sensitivity = value;
     }
 
     update(playerCar) {
@@ -25,7 +31,7 @@ export class CameraController {
 
         const cameraOffset = new THREE.Vector3(0, 5, 10).applyQuaternion(playerCar.mesh.quaternion);
         const cameraPosition = playerCar.mesh.position.clone().add(cameraOffset);
-        this.camera.position.lerp(cameraPosition, 0.1);
+        this.camera.position.lerp(cameraPosition, 0.1 * this.sensitivity);
 
         // Add camera shake at high speeds
         if (speedRatio > 0.5) {
@@ -34,7 +40,7 @@ export class CameraController {
             this.camera.position.y += (Math.random() - 0.5) * CAMERA_SHAKE_INTENSITY * shake;
         }
 
-        this.lookAtTarget.lerp(playerCar.mesh.position, CAMERA_LAG);
+        this.lookAtTarget.lerp(playerCar.mesh.position, CAMERA_LAG * this.sensitivity);
         this.camera.lookAt(this.lookAtTarget);
     }
 }
