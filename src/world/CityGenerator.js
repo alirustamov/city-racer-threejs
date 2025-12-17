@@ -81,7 +81,8 @@ export class CityGenerator {
                     const xOffset = (Math.random() - 0.5) * (blockSize - roadWidth - buildingWidth);
                     const zOffset = (Math.random() - 0.5) * (blockSize - roadWidth - buildingDepth);
 
-                    const position = new THREE.Vector3(i + blockSize / 2 + xOffset, buildingHeight / 2 + 0.1, j + blockSize / 2 + zOffset);
+                    const yOffset = Math.random() * 0.5;
+                    const position = new THREE.Vector3(i + blockSize / 2 + xOffset, buildingHeight / 2 + yOffset, j + blockSize / 2 + zOffset);
                     const color = this.buildingColors[Math.floor(Math.random() * this.buildingColors.length)];
 
                     const colors = [];
