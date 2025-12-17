@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
 	HANDBRAKE_LATERAL_DRAG,
 	LATERAL_DRAG,
@@ -9,36 +8,15 @@ import {
 
 export class Car {
 	constructor(scene) {
-		this.mesh = new THREE.Group();
-		this.mesh.position.y = 0.4; // Initial height of the car's center
+		// Car body
+		const carBody = new THREE.BoxGeometry(2, 0.8, 4);
+		const carMaterial = new THREE.MeshStandardMaterial({
+			color: 0xff0000
+		});
+		this.mesh = new THREE.Mesh(carBody, carMaterial);
+		this.mesh.position.y = 0.4;
+		this.mesh.castShadow = true;
 		scene.add(this.mesh);
-
-		// Car Body
-		const bodyGeometry = new RoundedBoxGeometry(2, 0.8, 4, 3, 0.1);
-		const bodyMaterial = new THREE.MeshStandardMaterial({
-			color: 0xff0000,
-			roughness: 0.2,
-			metalness: 0.8,
-		});
-		const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
-		bodyMesh.castShadow = true;
-		bodyMesh.receiveShadow = true;
-		this.mesh.add(bodyMesh);
-
-		// Car Cabin
-		const cabinGeometry = new RoundedBoxGeometry(1.6, 0.6, 2, 2, 0.1);
-		const cabinMaterial = new THREE.MeshStandardMaterial({
-			color: 0x222222,
-			roughness: 0,
-			metalness: 0,
-			transparent: true,
-			opacity: 0.5,
-		});
-		const cabinMesh = new THREE.Mesh(cabinGeometry, cabinMaterial);
-		cabinMesh.position.set(0, 0.7, -0.5);
-		cabinMesh.castShadow = true;
-		cabinMesh.receiveShadow = true;
-		this.mesh.add(cabinMesh);
 
 		// Wheels
 		this.wheels = [];
@@ -46,9 +24,7 @@ export class Car {
 		const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 32);
 		wheelGeometry.rotateZ(Math.PI / 2); // Align wheel axle with X-axis
 		const wheelMaterial = new THREE.MeshStandardMaterial({
-			color: 0x111111,
-			roughness: 0.8,
-			metalness: 0.1,
+			color: 0x111111
 		});
 
 		// Rear wheels
@@ -57,7 +33,6 @@ export class Car {
 			const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
 			wheel.position.copy(pos);
 			wheel.castShadow = true;
-			wheel.receiveShadow = true;
 			this.mesh.add(wheel);
 			this.wheels.push(wheel);
 		});
@@ -72,27 +47,9 @@ export class Car {
 
 			const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
 			wheel.castShadow = true;
-			wheel.receiveShadow = true;
 			pivot.add(wheel);
 			this.wheels.push(wheel);
 		});
-
-		// Headlights
-		const headlightGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.1, 16);
-		headlightGeometry.rotateX(Math.PI / 2);
-		const headlightMaterial = new THREE.MeshStandardMaterial({
-			color: 0xffffff,
-			emissive: 0xffffee,
-			emissiveIntensity: 2,
-		});
-
-		const headlight1 = new THREE.Mesh(headlightGeometry, headlightMaterial);
-		headlight1.position.set(0.7, 0, -2.01);
-		this.mesh.add(headlight1);
-
-		const headlight2 = new THREE.Mesh(headlightGeometry, headlightMaterial);
-		headlight2.position.set(-0.7, 0, -2.01);
-		this.mesh.add(headlight2);
 
 		// Brake lights
 		this.brakeLights = [];
